@@ -1,31 +1,37 @@
-# Environment
+# Dependencias
+node_modules/
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Variables de entorno y secretos
 .env
-*.env.local
+.env.*
+!.env.example
+*.pem
+*.key
 
-# Java / Maven
-**/target/
-**/*.class
-**/*.jar
-**/*.war
+# Build y salidas
+dist/
+build/
+out/
+target/
+*.class
+*.jar
 
+# Logs
+*.log
+logs/
+npm-debug.log*
 
-# IDE
+# IDEs y sistema operativo
 .idea/
-*.iml
 .vscode/
-*.swp
-
-# Node
-**/node_modules/
-**/dist/
-**/.cache/
-
-# OS
+*.iml
 .DS_Store
 Thumbs.db
 
-# Carpeta de respaldo / version antigua
--Posibles cambios-/
-db_productos_backup.sql
-
-.env
+# Cobertura y temporales
+coverage/
+*.tmp

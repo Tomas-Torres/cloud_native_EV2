@@ -1,0 +1,337 @@
+services:
+  # =============================================
+  # BASES DE DATOS - MySQL por Microservicio
+  # =============================================
+
+  mysql-usuarios:
+    image: mysql:8.0
+    container_name: lumina-mysql-usuarios
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: db_usuarios
+      MYSQL_USER: lumina_user
+      MYSQL_PASSWORD: lumina_pass
+    ports:
+      - "3307:3306"
+    volumes:
+      - vol_mysql_usuarios:/var/lib/mysql
+    networks:
+      - lumina-network
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u lumina_user -plumina_pass --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  mysql-productos:
+    image: mysql:8.0
+    container_name: lumina-mysql-productos
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: db_productos
+      MYSQL_USER: lumina_user
+      MYSQL_PASSWORD: lumina_pass
+    ports:
+      - "3308:3306"
+    volumes:
+      - vol_mysql_productos:/var/lib/mysql
+    networks:
+      - lumina-network
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u lumina_user -plumina_pass --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  mysql-bodega:
+    image: mysql:8.0
+    container_name: lumina-mysql-bodega
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: db_bodega
+      MYSQL_USER: lumina_user
+      MYSQL_PASSWORD: lumina_pass
+    ports:
+      - "3309:3306"
+    volumes:
+      - vol_mysql_bodega:/var/lib/mysql
+    networks:
+      - lumina-network
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u lumina_user -plumina_pass --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  mysql-carrito:
+    image: mysql:8.0
+    container_name: lumina-mysql-carrito
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: db_carrito
+      MYSQL_USER: lumina_user
+      MYSQL_PASSWORD: lumina_pass
+    ports:
+      - "3310:3306"
+    volumes:
+      - vol_mysql_carrito:/var/lib/mysql
+    networks:
+      - lumina-network
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u lumina_user -plumina_pass --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  mysql-delivery:
+    image: mysql:8.0
+    container_name: lumina-mysql-delivery
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: db_delivery
+      MYSQL_USER: lumina_user
+      MYSQL_PASSWORD: lumina_pass
+    ports:
+      - "3311:3306"
+    volumes:
+      - vol_mysql_delivery:/var/lib/mysql
+    networks:
+      - lumina-network
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u lumina_user -plumina_pass --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  mysql-pagos:
+    image: mysql:8.0
+    container_name: lumina-mysql-pagos
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: db_pagos
+      MYSQL_USER: lumina_user
+      MYSQL_PASSWORD: lumina_pass
+    ports:
+      - "3312:3306"
+    volumes:
+      - vol_mysql_pagos:/var/lib/mysql
+    networks:
+      - lumina-network
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u lumina_user -plumina_pass --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # =============================================
+  # RABBITMQ
+  # =============================================
+
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: lumina-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: lumina_user
+      RABBITMQ_DEFAULT_PASS: lumina_pass
+    volumes:
+      - vol_rabbitmq:/var/lib/rabbitmq
+    networks:
+      - lumina-network
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # =============================================
+  # MICROSERVICIOS
+  # =============================================
+
+  bff-gateway:
+    build: ./bff-gateway
+    container_name: lumina-bff-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - MS_USUARIOS_URL=http://ms-usuarios:8081
+      - MS_PRODUCTOS_URL=http://ms-productos:8082
+      - MS_BODEGA_URL=http://ms-bodega:8083
+      - MS_CARRITO_URL=http://ms-carrito:8084
+      - MS_DELIVERY_URL=http://ms-delivery:8085
+      - MS_PAGOS_URL=http://ms-pagos:8086
+    depends_on:
+      - ms-usuarios
+      - ms-productos
+      - ms-bodega
+      - ms-carrito
+      - ms-delivery
+      - ms-pagos
+    networks:
+      - lumina-network
+
+  ms-usuarios:
+    build: ./ms-usuarios
+    container_name: lumina-ms-usuarios
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-usuarios:3306/db_usuarios?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      - SPRING_DATASOURCE_USERNAME=lumina_user
+      - SPRING_DATASOURCE_PASSWORD=lumina_pass
+    depends_on:
+      mysql-usuarios:
+        condition: service_healthy
+    networks:
+      - lumina-network
+
+  ms-productos:
+    build: ./ms-productos
+    container_name: lumina-ms-productos
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-productos:3306/db_productos?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      - SPRING_DATASOURCE_USERNAME=lumina_user
+      - SPRING_DATASOURCE_PASSWORD=lumina_pass
+    depends_on:
+      mysql-productos:
+        condition: service_healthy
+    networks:
+      - lumina-network
+
+  ms-bodega:
+    build: ./ms-bodega
+    container_name: lumina-ms-bodega
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-bodega:3306/db_bodega?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      - SPRING_DATASOURCE_USERNAME=lumina_user
+      - SPRING_DATASOURCE_PASSWORD=lumina_pass
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_PORT=5672
+      - SPRING_RABBITMQ_USERNAME=lumina_user
+      - SPRING_RABBITMQ_PASSWORD=lumina_pass
+    depends_on:
+      mysql-bodega:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - lumina-network
+
+  ms-carrito:
+    build: ./ms-carrito
+    container_name: lumina-ms-carrito
+    ports:
+      - "8084:8084"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-carrito:3306/db_carrito?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      - SPRING_DATASOURCE_USERNAME=lumina_user
+      - SPRING_DATASOURCE_PASSWORD=lumina_pass
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_PORT=5672
+      - SPRING_RABBITMQ_USERNAME=lumina_user
+      - SPRING_RABBITMQ_PASSWORD=lumina_pass
+    depends_on:
+      mysql-carrito:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - lumina-network
+
+  ms-delivery:
+    build: ./ms-delivery
+    container_name: lumina-ms-delivery
+    ports:
+      - "8085:8085"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-delivery:3306/db_delivery?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      - SPRING_DATASOURCE_USERNAME=lumina_user
+      - SPRING_DATASOURCE_PASSWORD=lumina_pass
+    depends_on:
+      mysql-delivery:
+        condition: service_healthy
+    networks:
+      - lumina-network
+
+  ms-pagos:
+    build: ./ms-pagos
+    container_name: lumina-ms-pagos
+    ports:
+      - "8086:8086"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-pagos:3306/db_pagos?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      - SPRING_DATASOURCE_USERNAME=lumina_user
+      - SPRING_DATASOURCE_PASSWORD=lumina_pass
+      - MERCADOPAGO_ACCESS_TOKEN=${MERCADOPAGO_ACCESS_TOKEN:-}
+      - MERCADOPAGO_WEBHOOK_SECRET=${MERCADOPAGO_WEBHOOK_SECRET:-}
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_PORT=5672
+      - SPRING_RABBITMQ_USERNAME=lumina_user
+      - SPRING_RABBITMQ_PASSWORD=lumina_pass
+    depends_on:
+      mysql-pagos:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - lumina-network
+
+  # =============================================
+  # FRONTEND (Node.js / NPM para desarrollo)
+  # =============================================
+
+  frontend:
+    image: node:18-alpine
+    container_name: lumina-frontend
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8080/api
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    depends_on:
+      - bff-gateway
+    networks:
+      - lumina-network
+
+# =============================================
+# VOLÚMENES PERSISTENTES
+# =============================================
+volumes:
+  vol_mysql_usuarios:
+  vol_mysql_productos:
+  vol_mysql_bodega:
+  vol_mysql_carrito:
+  vol_mysql_delivery:
+  vol_mysql_pagos:
+  vol_rabbitmq:
+
+# =============================================
+# RED INTERNA
+# =============================================
+networks:
+  lumina-network:
+    driver: bridge

@@ -1,0 +1,73 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: bff-gateway
+
+# URLs de los microservicios
+microservices:
+  usuarios:
+    url: ${MS_USUARIOS_URL:http://localhost:8081}
+  productos:
+    url: ${MS_PRODUCTOS_URL:http://localhost:8082}
+  bodega:
+    url: ${MS_BODEGA_URL:http://localhost:8083}
+  carrito:
+    url: ${MS_CARRITO_URL:http://localhost:8084}
+  delivery:
+    url: ${MS_DELIVERY_URL:http://localhost:8085}
+  pagos:
+    url: ${MS_PAGOS_URL:http://localhost:8086}
+
+# JWT Compartido con ms-usuarios(mismo secreto para poder validar los tokens)
+jwt:
+  secret: ${JWT_SECRET:MiClaveSecretaParaJWTLuminaRetail2024SuperSegura256bits!}
+
+#Microsoft Azure
+azure:
+  tenant-id: ${AZURE_TENANT_ID:f7592987-1fb4-4045-afea-34bb5a3fe9d7}
+  client-id: ${AZURE_CLIENT_ID:262adf80-2a1e-4193-a2bc-df28650eb1bc}
+
+# Circuit Breaker (Resilience4j) - protege las llamadas a los microservicios
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        register-health-indicator: true
+        # Los errores HTTP del microservicio (4xx/5xx) NO abren el circuito;
+        # solo lo hacen los fallos de conexion / timeouts (servicio caido).
+        ignore-exceptions:
+          - org.springframework.web.reactive.function.client.WebClientResponseException
+    instances:
+      usuarios:
+        base-config: default
+      productos:
+        base-config: default
+      bodega:
+        base-config: default
+      carrito:
+        base-config: default
+      delivery:
+        base-config: default
+      pagos:
+        base-config: default
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,circuitbreakers
+  endpoint:
+    health:
+      show-details: always
+  health:
+    circuitbreakers:
+      enabled: true

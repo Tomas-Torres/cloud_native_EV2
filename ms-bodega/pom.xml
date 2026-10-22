@@ -14,7 +14,25 @@
     <version>1.0.0</version>
     <name>ms-bodega</name>
     <description>Microservicio de Bodega/Inventario - Tienda Retail Lumina</description>
-    <properties><java.version>17</java.version></properties>
+    <properties>
+        <java.version>17</java.version>
+        <!-- Spring Cloud AWS 3.2.x es compatible con Spring Boot 3.2.x (matriz oficial de compatibilidad) -->
+        <spring-cloud-aws.version>3.2.1</spring-cloud-aws.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- BOM: alinea AWS SDK v2 (2.25.70) y Spring Cloud 2023.0.x con Spring Boot 3.2.x -->
+            <dependency>
+                <groupId>io.awspring.cloud</groupId>
+                <artifactId>spring-cloud-aws-dependencies</artifactId>
+                <version>${spring-cloud-aws.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-jpa</artifactId></dependency>
@@ -22,6 +40,11 @@
         <dependency><groupId>com.mysql</groupId><artifactId>mysql-connector-j</artifactId><scope>runtime</scope></dependency>
         <dependency><groupId>org.springdoc</groupId><artifactId>springdoc-openapi-starter-webmvc-ui</artifactId><version>2.5.0</version></dependency>
         <dependency><groupId>org.projectlombok</groupId><artifactId>lombok</artifactId><optional>true</optional></dependency>
+        <!-- Spring Cloud AWS SQS: listener de la cola "curso-pedidos" con soporte de DLQ -->
+        <dependency>
+            <groupId>io.awspring.cloud</groupId>
+            <artifactId>spring-cloud-aws-starter-sqs</artifactId>
+        </dependency>
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
     </dependencies>
     <build>

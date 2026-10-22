@@ -47,6 +47,7 @@ class CrearPreferenciaRequestTest {
     void allArgsConstructor_DebeCrearRequestConTodosLosCampos() {
         CrearPreferenciaRequest.ItemRequest item = new CrearPreferenciaRequest.ItemRequest(
                 "Producto Test",
+                100L,
                 2,
                 new BigDecimal("5000.00"),
                 "Descripción del producto",
@@ -112,6 +113,7 @@ class CrearPreferenciaRequestTest {
     void itemRequestAllArgsConstructor_DebeCrearItemConTodosLosCampos() {
         CrearPreferenciaRequest.ItemRequest item = new CrearPreferenciaRequest.ItemRequest(
                 "Producto Test",
+                100L,
                 2,
                 new BigDecimal("5000.00"),
                 "Descripción del producto",
@@ -120,6 +122,7 @@ class CrearPreferenciaRequestTest {
 
         assertThat(item).isNotNull();
         assertThat(item.getTitulo()).isEqualTo("Producto Test");
+        assertThat(item.getProductoId()).isEqualTo(100L);
         assertThat(item.getCantidad()).isEqualTo(2);
         assertThat(item.getPrecioUnitario()).isEqualTo(new BigDecimal("5000.00"));
         assertThat(item.getDescripcion()).isEqualTo("Descripción del producto");

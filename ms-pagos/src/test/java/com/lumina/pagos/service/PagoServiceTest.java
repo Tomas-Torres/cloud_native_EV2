@@ -1,9 +1,14 @@
 package com.lumina.pagos.service;
 
 import com.lumina.pagos.dto.CrearPreferenciaRequest;
+import com.lumina.pagos.dto.ItemPedidoDto;
 import com.lumina.pagos.dto.PagoResponse;
+import com.lumina.pagos.dto.PedidoPagadoDto;
 import com.lumina.pagos.entity.EstadoPago;
+import com.lumina.pagos.entity.ItemPago;
 import com.lumina.pagos.entity.Pago;
+import com.lumina.pagos.messaging.PedidoSqsPublisher;
+import com.lumina.pagos.repository.ItemPagoRepository;
 import com.lumina.pagos.repository.PagoRepository;
 import com.mercadopago.client.payment.PaymentClient;
 import com.mercadopago.client.preference.PreferenceClient;
@@ -33,6 +38,12 @@ class PagoServiceTest {
 
     @Mock
     private PagoRepository pagoRepository;
+
+    @Mock
+    private ItemPagoRepository itemPagoRepository;
+
+    @Mock
+    private PedidoSqsPublisher pedidoSqsPublisher;
 
     @Mock
     private PreferenceClient preferenceClient;
@@ -400,5 +411,113 @@ class PagoServiceTest {
 
         assertThat(resultado).isEmpty();
         verify(pagoRepository).findByOrdenId("ORD-999");
+    }
+
+    @Test
+    void crearPreferencia_DebeGuardarLosItemsDelPedido() {
+        CrearPreferenciaRequest.ItemRequest itemConProducto = CrearPreferenciaRequest.ItemRequest.builder()
+                .titulo("Producto Test")
+                .productoId(100L)
+                .cantidad(2)
+                .precioUnitario(new BigDecimal("5000.00"))
+                .build();
+
+        request = CrearPreferenciaRequest.builder()
+                .ordenId("ORD-123")
+                .usuarioId(100L)
+                .items(Collections.singletonList(itemConProducto))
+                .build();
+
+        when(preference.getId()).thenReturn("pref-123");
+        try {
+            when(preferenceClient.create(any())).thenReturn(preference);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        when(pagoRepository.save(any(Pago.class))).thenReturn(pago);
+
+        pagoService.crearPreferencia(request);
+
+        verify(itemPagoRepository).saveAll(argThat(items -> {
+            List<ItemPago> lista = (List<ItemPago>) items;
+            return lista.size() == 1
+                    && lista.get(0).getProductoId().equals(100L)
+                    && lista.get(0).getCantidad().equals(2)
+                    && lista.get(0).getOrdenId().equals("ORD-123");
+        }));
+    }
+
+    @Test
+    void procesarNotificacion_DebePublicarPedidoPagadoEnSqs_CuandoPagoAprobado() {
+        when(payment.getId()).thenReturn(12345L);
+        when(payment.getExternalReference()).thenReturn("ORD-123");
+        when(payment.getStatus()).thenReturn("approved");
+        when(payment.getStatusDetail()).thenReturn("accredited");
+        when(payment.getPaymentMethodId()).thenReturn("credit_card");
+        try {
+            when(paymentClient.get(12345L)).thenReturn(payment);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        when(pagoRepository.findByOrdenId("ORD-123")).thenReturn(Collections.singletonList(pago));
+        when(pagoRepository.save(any(Pago.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(itemPagoRepository.findByOrdenId("ORD-123")).thenReturn(List.of(
+                ItemPago.builder()
+                        .pagoId(1L)
+                        .ordenId("ORD-123")
+                        .productoId(100L)
+                        .nombreProducto("Laptop HP")
+                        .cantidad(2)
+                        .build()));
+
+        pagoService.procesarNotificacion("payment", 12345L);
+
+        verify(pedidoSqsPublisher).publicarPedidoPagado(argThat((PedidoPagadoDto evento) ->
+                evento.getOrdenId().equals("ORD-123")
+                        && evento.getUsuarioId().equals(100L)
+                        && evento.getItems().size() == 1
+                        && evento.getItems().get(0).getProductoId().equals(100L)
+                        && evento.getItems().get(0).getCantidad().equals(2)));
+    }
+
+    @Test
+    void procesarNotificacion_DebePublicarPedidoPagadoEnSqs_CuandoPagoAprobadoYSinItems() {
+        when(payment.getId()).thenReturn(12345L);
+        when(payment.getExternalReference()).thenReturn("ORD-123");
+        when(payment.getStatus()).thenReturn("approved");
+        when(payment.getStatusDetail()).thenReturn("accredited");
+        when(payment.getPaymentMethodId()).thenReturn("credit_card");
+        try {
+            when(paymentClient.get(12345L)).thenReturn(payment);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        when(pagoRepository.findByOrdenId("ORD-123")).thenReturn(Collections.singletonList(pago));
+        when(pagoRepository.save(any(Pago.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(itemPagoRepository.findByOrdenId("ORD-123")).thenReturn(Collections.emptyList());
+
+        pagoService.procesarNotificacion("payment", 12345L);
+
+        verify(pedidoSqsPublisher, never()).publicarPedidoPagado(any(PedidoPagadoDto.class));
+    }
+
+    @Test
+    void procesarNotificacion_DebeNoPublicarPedidoEnSqs_CuandoPagoNoAprobado() {
+        when(payment.getId()).thenReturn(12345L);
+        when(payment.getExternalReference()).thenReturn("ORD-123");
+        when(payment.getStatus()).thenReturn("rejected");
+        when(payment.getStatusDetail()).thenReturn("accredited");
+        when(payment.getPaymentMethodId()).thenReturn("credit_card");
+        try {
+            when(paymentClient.get(12345L)).thenReturn(payment);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        when(pagoRepository.findByOrdenId("ORD-123")).thenReturn(Collections.singletonList(pago));
+        when(pagoRepository.save(any(Pago.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        pagoService.procesarNotificacion("payment", 12345L);
+
+        verify(pedidoSqsPublisher, never()).publicarPedidoPagado(any(PedidoPagadoDto.class));
     }
 }

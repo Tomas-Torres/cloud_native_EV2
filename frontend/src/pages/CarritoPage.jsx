@@ -29,6 +29,7 @@ function CarritoPage() {
         usuarioId: user?.id || 1,
         items: items.map((item) => ({
           titulo: item.nombre,
+          productoId: item.id,
           cantidad: item.cantidad,
           precioUnitario: Number(item.precio),
           descripcion: item.marca || 'Producto',
@@ -47,8 +48,8 @@ function CarritoPage() {
         pedidos.push(pedido);
         localStorage.setItem(pedidosKey, JSON.stringify(pedidos));
         localStorage.setItem('lumina-last-orden', ordenId);
-        // Descontar stock de cada producto
-        await Promise.all(items.map(item => bodegaService.descontarStock(item.id, item.cantidad)));
+        // El stock NO se descuenta aqui: ms-pagos publica el evento "pedido pagado" en la
+        // cola SQS "curso-pedidos" y ms-bodega lo consume para descontar el inventario.
         clearCart();
         window.location.href = checkoutUrl;
       } else {
@@ -187,7 +188,8 @@ function CarritoPage() {
               pedidos.push(pedido);
               localStorage.setItem(pedidosKey, JSON.stringify(pedidos));
               localStorage.setItem('lumina-last-orden', demoOrdenId);
-              // Descontar stock de cada producto
+              // Simulacion: no pasa por ms-pagos, asi que no hay evento en SQS y el stock
+              // se descuenta directamente.
               await Promise.all(items.map(item => bodegaService.descontarStock(item.id, item.cantidad)));
               clearCart();
               navigate('/pago/exitoso');

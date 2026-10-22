@@ -1,9 +1,14 @@
 package com.lumina.pagos.service;
 
 import com.lumina.pagos.dto.CrearPreferenciaRequest;
+import com.lumina.pagos.dto.ItemPedidoDto;
 import com.lumina.pagos.dto.PagoResponse;
+import com.lumina.pagos.dto.PedidoPagadoDto;
 import com.lumina.pagos.entity.EstadoPago;
+import com.lumina.pagos.entity.ItemPago;
 import com.lumina.pagos.entity.Pago;
+import com.lumina.pagos.messaging.PedidoSqsPublisher;
+import com.lumina.pagos.repository.ItemPagoRepository;
 import com.lumina.pagos.repository.PagoRepository;
 import com.mercadopago.client.payment.PaymentClient;
 import com.mercadopago.client.preference.*;
@@ -14,8 +19,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -26,6 +34,8 @@ import java.util.stream.Collectors;
 public class PagoService {
 
     private final PagoRepository pagoRepository;
+    private final ItemPagoRepository itemPagoRepository;
+    private final PedidoSqsPublisher pedidoSqsPublisher;
     private final PreferenceClient preferenceClient;
     private final PaymentClient paymentClient;
 
@@ -94,6 +104,10 @@ public class PagoService {
 
             pago = pagoRepository.save(pago);
 
+            // Se guardan los items para poder reconstruir el evento "pedido pagado" cuando
+            // MercadoPago notifique la aprobacion del pago.
+            guardarItemsPedido(pago, request.getItems());
+
             log.info("Preferencia creada: {} para orden: {}", preference.getId(), request.getOrdenId());
 
             return mapToResponse(pago, preference.getInitPoint(), preference.getSandboxInitPoint());
@@ -145,9 +159,78 @@ public class PagoService {
 
             log.info("Pago actualizado - ID: {}, Estado: {}", pago.getId(), pago.getEstado());
 
+            // El pedido se publica en SQS solo cuando el pago queda aprobado: ms-bodega es el
+            // consumidor y descuenta el stock del inventario.
+            if (pago.getEstado() == EstadoPago.APROBADO) {
+                publicarPedidoPagado(pago);
+            }
+
         } catch (Exception e) {
             log.error("Error procesando webhook de pago: {}", e.getMessage());
             throw new RuntimeException("Error procesando notificación de pago", e);
+        }
+    }
+
+    /**
+     * Persiste los items del pedido para poder reconstruir el evento que se publica en SQS.
+     *
+     * @param pago  pago recien creado
+     * @param items items de la solicitud de preference
+     */
+    private void guardarItemsPedido(Pago pago, List<CrearPreferenciaRequest.ItemRequest> items) {
+        List<ItemPago> itemsPago = items.stream()
+                .map(item -> ItemPago.builder()
+                        .pagoId(pago.getId())
+                        .ordenId(pago.getOrdenId())
+                        .productoId(item.getProductoId())
+                        .nombreProducto(item.getTitulo())
+                        .cantidad(item.getCantidad())
+                        .build())
+                .collect(Collectors.toList());
+
+        itemPagoRepository.saveAll(itemsPago);
+    }
+
+    /**
+     * Publica el evento "pedido pagado" en la cola "curso-pedidos".
+     *
+     * <p>Si hay una transaccion activa la publicacion se difiere al {@code afterCommit} para no
+     * emitir el evento de una transaccion que finalmente hace rollback.</p>
+     *
+     * @param pago pago aprobado
+     */
+    private void publicarPedidoPagado(Pago pago) {
+        List<ItemPago> items = itemPagoRepository.findByOrdenId(pago.getOrdenId());
+
+        if (items.isEmpty()) {
+            log.warn("No hay items registrados para la orden {}. No se publica el evento a SQS", pago.getOrdenId());
+            return;
+        }
+
+        PedidoPagadoDto evento = PedidoPagadoDto.builder()
+                .ordenId(pago.getOrdenId())
+                .usuarioId(pago.getUsuarioId())
+                .items(items.stream()
+                        .map(item -> ItemPedidoDto.builder()
+                                .productoId(item.getProductoId())
+                                .nombreProducto(item.getNombreProducto())
+                                .cantidad(item.getCantidad())
+                                .build())
+                        .collect(Collectors.toList()))
+                .montoTotal(pago.getMontoTotal())
+                .moneda(pago.getMoneda())
+                .fechaPago(pago.getFechaActualizacion() != null ? pago.getFechaActualizacion() : LocalDateTime.now())
+                .build();
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    pedidoSqsPublisher.publicarPedidoPagado(evento);
+                }
+            });
+        } else {
+            pedidoSqsPublisher.publicarPedidoPagado(evento);
         }
     }
 

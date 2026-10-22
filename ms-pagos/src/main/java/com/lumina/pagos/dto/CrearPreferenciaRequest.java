@@ -35,6 +35,13 @@ public class CrearPreferenciaRequest {
         @NotBlank(message = "El título del item es obligatorio")
         private String titulo;
 
+        /**
+         * Id del producto en el catalogo. Necesario para que ms-bodega descuente el stock
+         * al recibir el evento "pedido pagado" de SQS.
+         */
+        @Positive(message = "El productoId debe ser mayor a 0")
+        private Long productoId;
+
         @NotNull(message = "La cantidad es obligatoria")
         @Positive(message = "La cantidad debe ser mayor a 0")
         private Integer cantidad;

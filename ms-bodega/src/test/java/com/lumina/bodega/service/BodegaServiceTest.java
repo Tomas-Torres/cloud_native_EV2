@@ -1,5 +1,6 @@
 package com.lumina.bodega.service;
 
+import com.lumina.bodega.dto.ItemPedidoDto;
 import com.lumina.bodega.entity.AlertaStock;
 import com.lumina.bodega.entity.Inventario;
 import com.lumina.bodega.repository.AlertaStockRepository;
@@ -227,5 +228,58 @@ class BodegaServiceTest {
         assertThat(resultado.get(0).getProductoId()).isEqualTo(100L);
         assertThat(resultado.get(0).getResuelta()).isFalse();
         verify(alertaStockRepository).findByResueltaFalseOrderByFechaCreacionDesc();
+    }
+
+    @Test
+    void descontarStockPedido_DebeDescontarTodosLosItems_CuandoHayStockSuficiente() {
+        Inventario inventarioMouse = Inventario.builder()
+                .id(2L)
+                .productoId(200L)
+                .nombreProducto("Mouse Logitech")
+                .stock(30)
+                .stockMinimo(10)
+                .build();
+
+        when(inventarioRepository.findByProductoId(100L)).thenReturn(Optional.of(inventario));
+        when(inventarioRepository.findByProductoId(200L)).thenReturn(Optional.of(inventarioMouse));
+        when(inventarioRepository.save(any(Inventario.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        List<ItemPedidoDto> items = List.of(
+                ItemPedidoDto.builder().productoId(100L).nombreProducto("Laptop HP").cantidad(2).build(),
+                ItemPedidoDto.builder().productoId(200L).nombreProducto("Mouse Logitech").cantidad(3).build());
+
+        bodegaService.descontarStockPedido(items);
+
+        assertThat(inventario.getStock()).isEqualTo(48);
+        assertThat(inventarioMouse.getStock()).isEqualTo(27);
+        verify(inventarioRepository).save(inventario);
+        verify(inventarioRepository).save(inventarioMouse);
+    }
+
+    @Test
+    void descontarStockPedido_DebePropagarRuntimeException_CuandoStockInsuficiente() {
+        inventario.setStock(1);
+        when(inventarioRepository.findByProductoId(100L)).thenReturn(Optional.of(inventario));
+
+        List<ItemPedidoDto> items = List.of(
+                ItemPedidoDto.builder().productoId(100L).nombreProducto("Laptop HP").cantidad(10).build());
+
+        // La excepcion debe propagarse: el consumidor SQS la relanza para que el mensaje
+        // se reintente y termine en la DLQ.
+        assertThatThrownBy(() -> bodegaService.descontarStockPedido(items))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Stock insuficiente para producto: 100");
+    }
+
+    @Test
+    void descontarStockPedido_DebeLanzarIllegalArgumentException_CuandoNoHayItems() {
+        assertThatThrownBy(() -> bodegaService.descontarStockPedido(Collections.emptyList()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("El pedido no contiene items para descontar");
+
+        assertThatThrownBy(() -> bodegaService.descontarStockPedido(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("El pedido no contiene items para descontar");
     }
 }

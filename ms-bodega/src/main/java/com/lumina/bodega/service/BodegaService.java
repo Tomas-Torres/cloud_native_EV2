@@ -1,5 +1,6 @@
 package com.lumina.bodega.service;
 
+import com.lumina.bodega.dto.ItemPedidoDto;
 import com.lumina.bodega.entity.AlertaStock;
 import com.lumina.bodega.entity.Inventario;
 import com.lumina.bodega.repository.AlertaStockRepository;
@@ -67,6 +68,28 @@ public class BodegaService {
 
     public List<AlertaStock> obtenerAlertas() {
         return alertaStockRepository.findByResueltaFalseOrderByFechaCreacionDesc();
+    }
+
+    /**
+     * Descuenta el stock de todos los items de un pedido (mensaje "pedido pagado" de SQS)
+     * dentro de UNA sola transaccion.
+     *
+     * <p>Si un item falla (stock insuficiente o producto sin registro de inventario) la
+     * transaccion se revierte completa y la excepcion se propaga al consumidor SQS, que
+     * relanza la excepcion para que el mensaje se reintente y, tras agotar los reintentos
+     * permitidos por la redrive policy, termine en la DLQ.</p>
+     *
+     * @param items items del pedido a descontar
+     */
+    @Transactional
+    public void descontarStockPedido(List<ItemPedidoDto> items) {
+        if (items == null || items.isEmpty()) {
+            throw new IllegalArgumentException("El pedido no contiene items para descontar");
+        }
+
+        for (ItemPedidoDto item : items) {
+            descontarStock(item.getProductoId(), item.getCantidad());
+        }
     }
 
     private void generarAlerta(Inventario inventario) {

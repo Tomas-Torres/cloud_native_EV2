@@ -1,0 +1,67 @@
+===============================================================
+  REPOSITORIOS DEL PROYECTO - TIENDA RETAIL LUMINA
+  Arquitectura de Microservicios - FullStack III
+===============================================================
+
+1. REPOSITORIO PRINCIPAL (Monorepo)
+---------------------------------------------------------------
+   URL: https://github.com/YutaOkkotsuUwU/FullStack-lll
+   Descripcion: Repositorio principal que contiene todos los
+   componentes del proyecto organizados en un monorepo.
+   Incluye frontend, BFF Gateway, 6 microservicios,
+   Docker Compose y documentacion.
+
+2. COMPONENTES DEL PROYECTO
+---------------------------------------------------------------
+
+   a) Frontend (React + Vite + Tailwind CSS)
+      Ruta: /frontend
+      Descripcion: Aplicacion web SPA con React 18, Vite,
+      Tailwind CSS, Lucide React y Framer Motion.
+      Incluye paginas de catalogo, carrito, pagos, delivery,
+      registro/login y panel de administracion.
+
+   b) BFF Gateway (Backend For Frontend)
+      Ruta: /bff-gateway
+      Descripcion: API Gateway con Spring Boot 3.2 que actua
+      como unico punto de entrada (puerto 8080). Orquesta
+      y redirige peticiones a los microservicios internos.
+
+   c) Microservicio de Usuarios (ms-usuarios)
+      Ruta: /ms-usuarios
+      Descripcion: Gestion de usuarios, registro, autenticacion
+      con JWT y perfiles. Puerto 8081, BD en puerto 3307.
+
+   d) Microservicio de Productos (ms-productos)
+      Ruta: /ms-productos
+      Descripcion: Catalogo de productos y marcas.
+      Puerto 8082, BD en puerto 3308.
+
+   e) Microservicio de Bodega (ms-bodega)
+      Ruta: /ms-bodega
+      Descripcion: Gestion de inventario, stock y alertas
+      de stock critico. Puerto 8083, BD en puerto 3309.
+
+   f) Microservicio de Carrito (ms-carrito)
+      Ruta: /ms-carrito
+      Descripcion: Carrito de compras por usuario.
+      Puerto 8084, BD en puerto 3310.
+
+   g) Microservicio de Delivery (ms-delivery)
+      Ruta: /ms-delivery
+      Descripcion: Seguimiento de entregas con historial
+      de estados. Puerto 8085, BD en puerto 3311.
+
+   h) Microservicio de Pagos (ms-pagos)
+      Ruta: /ms-pagos
+      Descripcion: Integracion con MercadoPago para
+      procesamiento de pagos. Puerto 8086, BD en puerto 3312.
+
+3. DOCUMENTACION
+---------------------------------------------------------------
+   - README.md principal con instrucciones de ejecucion
+   - /docs/Analisis_Patrones_Arquetipos.md
+   - /docs/Plan_Branching.md
+   - /docs/Arquetipos_Maven.md
+
+===============================================================
